@@ -1,0 +1,255 @@
+﻿/matematyka stałoprzecinkowa
+/przecinek stawiamy po czwartej cyfrze licząc od prawej
+/marie obsługuje liczby od –32,768 do 32,767 więc praktycznie idealnie od pi radianów do -pi rad
+/ponieważ jednak program zapisuje liczbę powyżej 32,767 prosto do komórki jako ujemną
+/możemy zaprogramować działanie od 0 do 2pi, trzeba jedynie poprawić ujemne inputy
+/tak jakby overflow następował na 31416 (pi) tzn. dodać [CONST_FIX, DEC 2704]
+/otrzymamy wtedy prawidłowy kąt ujemny odpowiadający danemu kątowi
+/można tą funkcje wyłączyć za pomocą zmiennej
+/MINUS_INPUT, DEC 1 /0 - przedział [-pi, pi], cokolwiek innego - przedział [0, 2pi]
+
+INPUT
+STORE VAR_IN
+
+/pierwszy blok kodu normalizuje podane wartości tak aby program mógł z nich skorzystać
+
+LOAD MINUS_INPUT
+SKIPCOND 000
+JUMP SIN_CHECK
+JUMP SIN_MINUS
+
+SIN_CHECK,	LOAD VAR_IN
+			SKIPCOND 000
+			JUMP SIN_MINUS
+			JUMP SIN_FIX
+
+SIN_FIX, 	ADD CONST_FIX
+			STORE VAR_IN
+
+/zmniejsza ilość wykonań algorytmu poprzez zaczynanie od najbliższej ćwiartki (0deg, 90deg, 180deg) 
+/ponieważ dla tych kątów wartości sin i cos są proste
+
+SIN_MINUS, 	SKIPCOND 000
+            JUMP SIN_PLUS
+            
+            ADD CONST_PI:2
+			STORE VAR_IN
+			
+            CLEAR 
+            STORE VAR_COS
+			SUBT CONST_F1
+			STORE VAR_SIN
+            
+            LOAD VAR_IN
+            SKIPCOND 000
+			JUMP SIN_COUNT
+            
+			ADD CONST_PI:2
+			STORE VAR_IN
+            
+			CLEAR 
+            STORE VAR_SIN
+			SUBT CONST_F1
+			STORE VAR_COS
+            JUMP SIN_COUNT
+
+SIN_PLUS,	SUBT CONST_PI:2
+			SKIPCOND 800
+            JUMP SIN_COUNT
+            STORE VAR_IN
+            
+            CLEAR 
+            STORE VAR_COS
+			ADD CONST_F1
+			STORE VAR_SIN
+
+SIN_COUNT, 	LOAD VAR_IN
+
+/array z potęgami 10 pozwalający na szybkie dzielenie przez potęgi 10
+			            
+TEN_ARRAY, 	JNS ARRAY_ADR
+			DEC -10000
+		 	DEC -1000
+            DEC -100
+            DEC -10
+			DEC -1
+    
+ARRAY_PTR, 	HEX 0
+ARRAY_ADR, 	HEX 0
+
+/przygotowanie kilku zmiennych używanych w programie
+PREP_VALS,  LOAD ARRAY_ADR
+            ADD VAR_PRECISION
+            STORE ARRAY_PTR
+            LOADI ARRAY_PTR
+            STORE VAR_STEP
+            SUBT VAR_STEP
+            SUBT VAR_STEP
+            STORE VAR_STEP
+            /OUTPUT
+
+			LOAD ARRAY_ADR
+			ADD VAR_PRECISION
+			STORE VAR_ROUND
+
+/przygotowanie zmiennej używaniej w zaokrąglaniu (w zależności od dzielenia jest inna)          
+PREP_ROUND, LOADI VAR_ROUND
+			/OUTPUT
+
+            ADD CONST_1
+			SKIPCOND 000
+			JUMP LOAD_ROUND
+            LOAD VAR_ROUND
+			ADD CONST_1
+			STORE VAR_ROUND
+            JUMP PREP_ROUND
+
+
+LOAD_ROUND, LOAD VAR_ROUND
+			SUBT VAR_PRECISION
+            ADD CONST_1
+			STORE VAR_ROUND
+			
+            LOADI VAR_ROUND
+			ADDI VAR_ROUND
+            ADDI VAR_ROUND
+            ADDI VAR_ROUND
+            ADDI VAR_ROUND
+            STORE VAR_ROUND
+            CLEAR
+            SUBT VAR_ROUND
+			STORE VAR_ROUND
+
+            /Output
+
+
+/właściwa pętla w której wykonywane są obliczenia
+COUNT_LOOP,	LOAD VAR_SIN	/dzielenie sinusa
+			STORE VAR_DIN
+			JNS FAST_DIV
+            
+            LOAD VAR_COS	/obliczanie cosinusa
+			SUBT VAR_DOUT
+			STORE VAR_COS
+			OUTPUT
+            
+            STORE VAR_DIN	/dzielenie cosinusa
+			JNS FAST_DIV
+			
+            LOAD VAR_SIN	/obliczanie sinusa
+			ADD VAR_DOUT
+            STORE VAR_SIN
+			OUTPUT
+            
+            LOAD VAR_IN		/kontroluje ile obrotów już wykonano
+			SUBT VAR_STEP
+
+            SKIPCOND 800
+            JUMP SIN_FIN
+            STORE VAR_IN
+
+            JUMP COUNT_LOOP
+
+		
+
+            
+            
+SIN_FIN,	HALT 
+
+
+
+/szybki (tak mi sie wydaje nwm) algorytm dzielenia przez potęgi 10
+FAST_DIV,	DEC 0
+			CLEAR
+            STORE VAR_DOUT
+            STORE VAR_DSIGN
+			
+			LOAD ARRAY_ADR
+            STORE VAR_DIVISOR
+            
+            LOAD VAR_DIN
+			SKIPCOND 000
+            JUMP DIV_PREP
+			CLEAR
+            SUBT VAR_DIN
+            STORE VAR_DIN
+            
+            LOAD CONST_1
+			STORE VAR_DSIGN
+            
+DIV_PREP,   LOAD VAR_DIVISOR
+			ADD VAR_PRECISION
+
+			STORE VAR_RESULT
+			LOADI VAR_RESULT
+			STORE VAR_RESULT
+            CLEAR
+            SUBT VAR_RESULT
+			STORE VAR_RESULT
+
+DIV_LOOP, 	LOAD VAR_DIN
+			ADDI VAR_DIVISOR
+			
+            SKIPCOND 000
+            JUMP DIV_AGAIN
+            JUMP DIV_ALTER
+
+DIV_AGAIN, 	STORE VAR_DIN
+			LOAD VAR_DOUT
+			ADD VAR_RESULT
+            STORE VAR_DOUT
+			JUMP DIV_LOOP
+
+DIV_ALTER,	LOAD VAR_RESULT
+			SUBT CONST_1
+			SKIPCOND 800
+            JUMP DIV_FIN
+
+			LOAD VAR_DIVISOR
+			ADD CONST_1
+			STORE VAR_DIVISOR
+            JUMP DIV_PREP
+
+/wynik jest zaokrąglany
+DIV_FIN, 	LOAD VAR_DIN
+			SUBT VAR_ROUND
+			SKIPCOND 000
+            JUMP DIV_ROUND      
+			JUMP DIV_SIGN
+            
+DIV_ROUND,	LOAD VAR_DOUT
+			ADD CONST_1
+            STORE VAR_DOUT
+
+DIV_SIGN,	LOAD VAR_DSIGN
+			SKIPCOND 800
+			JUMPI FAST_DIV
+           
+            CLEAR
+            SUBT VAR_DOUT
+			STORE VAR_DOUT
+            JUMPI FAST_DIV
+
+			
+VAR_DIN, DEC 0
+VAR_DOUT, DEC 0
+VAR_DSIGN, DEC 0 //TELLS IF DIVISION RESULT WILL BE NEGATIVE ( 0 POSITIVE >0 NEGATIVE)
+VAR_DIVISOR, DEC 0 //POINTER TO DIVISOR IN ARRAY
+VAR_RESULT, DEC 0
+
+
+VAR_IN, DEC 0		/input programu
+VAR_SIN, DEC 0		/wartość sinusa
+VAR_COS, DEC 10000	/wartość cosinusa
+
+MINUS_INPUT, DEC 1
+VAR_PRECISION, DEC 3 /0.1^x ile radianów obrotu przy pojedyńczym wykonaniu algorytmu
+VAR_ROUND, DEC 0
+VAR_STEP, DEC 0
+
+CONST_FIX, DEC 2704 /zmienna poprawiająca wartości większe niż 31767
+CONST_PI, DEC 31416
+CONST_PI:2, DEC 15708	/połowa pi
+CONST_0.1, 	DEC 1000
+CONST_F1, DEC 10000
+CONST_1, 	DEC 1
